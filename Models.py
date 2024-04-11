@@ -6,12 +6,13 @@ from sklearn.pipeline import make_pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
+from sklearn.svm import SVC
 import os
 import NSGA_vanilla as nsga
 print(os.getcwd())
 # Load the dataset
 # Note: Replace 'your_data.csv' with the actual path to your CSV file
-df = pd.read_csv('Project/data01.csv')
+df = pd.read_csv('data01.csv')
 
 # Split the DataFrame into features and target
 # Note: Replace 'target_column' with the name of your target column
@@ -57,12 +58,30 @@ X_test_scaled = scaler.transform(X_test)
 # Initialize and train the logistic regression model
 logistic_model = LogisticRegression(max_iter=1500)
 logistic_model.fit(X_train_scaled, y_train)
-
 y_pred = logistic_model.predict(X_test_scaled)
+
 #performance
 accuracy = accuracy_score(y_test, y_pred)
 print(f"Accuracy: {accuracy}")
 
+#Support Vector Machine
+print("\n\nSupport Vector Machines\n\n")
+svm_model = SVC(kernel='linear', random_state=42)
+svm_model.fit(X_train_scaled, y_train)
+y_pred_svm_linear = svm_model.predict(X_test_scaled)
+
+svm_accuracy_linear = accuracy_score(y_test, y_pred_svm_linear)
+print("SVM (linear kernel) Accuracy:", svm_accuracy_linear)
+
+svm_model = SVC(kernel='poly', random_state=42)
+svm_model.fit(X_train_scaled, y_train)
+y_pred_svm_poly = svm_model.predict(X_test_scaled)
+
+svm_accuracy_poly = accuracy_score(y_test, y_pred_svm_poly)
+print("SVM (polinomial kernel) Accuracy:", svm_accuracy_poly)
+
+
+"""
 # for i in range(1000):
 #     arguement = X_imputed.iloc[[i]].copy()  # Use double brackets to keep it as a DataFrame
 #     prediction = logistic_model.predict(arguement)
@@ -89,4 +108,4 @@ print(f"Final Population's Fitness:{final_population[0]}")
 # for ind in final_population:
 #     print(ind)
 
-print("Hall of Fame Individuals:")
+print("Hall of Fame Individuals:")"""
