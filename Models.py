@@ -65,7 +65,7 @@ accuracy = accuracy_score(y_test, y_pred)
 print(f"Accuracy: {accuracy}")
 
 #Support Vector Machine
-print("\n\nSupport Vector Machines\n\n")
+print("\n\nSupport Vector Machines\n")
 svm_model = SVC(kernel='linear', random_state=42)
 svm_model.fit(X_train_scaled, y_train)
 y_pred_svm_linear = svm_model.predict(X_test_scaled)
@@ -81,7 +81,6 @@ svm_accuracy_poly = accuracy_score(y_test, y_pred_svm_poly)
 print("SVM (polinomial kernel) Accuracy:", svm_accuracy_poly)
 
 
-"""
 # for i in range(1000):
 #     arguement = X_imputed.iloc[[i]].copy()  # Use double brackets to keep it as a DataFrame
 #     prediction = logistic_model.predict(arguement)
@@ -108,4 +107,4 @@ print(f"Final Population's Fitness:{final_population[0]}")
 # for ind in final_population:
 #     print(ind)
 
-print("Hall of Fame Individuals:")"""
+print("Hall of Fame Individuals:")
