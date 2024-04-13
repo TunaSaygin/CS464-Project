@@ -1,8 +1,8 @@
 import random
 import numpy as np
 import pandas as pd
-import sys
 from scipy.spatial.distance import cdist
+import matplotlib.pyplot as plt
 def o1(x_prime, y_prime)->float:
     """
     Objective to minimize the distance between the prediction of x_prime and the desired prediction y_prime.
@@ -93,7 +93,7 @@ def dominates(x1,x2,x_observational,x_original,model_predict,y_prime,R_hat)->boo
     return False
 
 def nonDominatedSorting(population,x_observational,x_original, model_predict, y_prime, R_hat):
-    print("Before dominated sorted")
+    # print("Before dominated sorted")
     P = population  # The main population
     fronts = [[]]  # The first front is initialized as empty
 
@@ -118,7 +118,7 @@ def nonDominatedSorting(population,x_observational,x_original, model_predict, y_
             fronts[0].append(p)
         # else:
         #     # print(f"p['np'] = {p['np']}")
-    print("finished first for for loop of nd sort")
+    # print("finished first for for loop of nd sort")
     i = 0  # Initialize the front counter
     while fronts[i]:
         Q = []  # The set for storing individuals for the (i+1)th front
@@ -135,7 +135,7 @@ def nonDominatedSorting(population,x_observational,x_original, model_predict, y_
     # Remove the last front if it's empty
     if not fronts[-1]:
         fronts.pop()
-    print("finished sorting")
+    # print("finished sorting")
     return fronts
 
 def assign_crowding_distance(fronts, y_prime, R_hat, model_predict, x_observational,x_original):
@@ -224,7 +224,7 @@ def crowded_tournament_selection(population, k):
         selected.append(winner)
 
     return selected
-def sbx_crossover(p1, p2, eta_c=30):
+def sbx_crossover(p1, p2, eta_c=30,feature_ranges=None):
     p1 = np.array(p1)
     p2 = np.array(p2)
     u = random.random()
@@ -235,51 +235,69 @@ def sbx_crossover(p1, p2, eta_c=30):
     # print(f"p1={p1}")
     # Perform crossover for each element
     for i in range(len(p1)):
-        u = random.random()
-        if u <= 0.5:
-            beta = (2 * u)**(1 / (eta_c + 1))
+        if feature_ranges[i] == (0, 1):
+            # Binary feature, pick randomly from parents
+            offspring1["features"][i] = random.choice([p1[i], p2[i]])
+            offspring2["features"][i] = random.choice([p1[i], p2[i]])
         else:
-            beta = (1 / (2 * (1 - u)))**(1 / (eta_c + 1))
+            # Perform standard SBX crossover
+            u = random.random()
+            if u <= 0.5:
+                beta = (2 * u)**(1 / (eta_c + 1))
+            else:
+                beta = (1 / (2 * (1 - u)))**(1 / (eta_c + 1))
 
-        c1 = 0.5 * ((1 + beta) * p1[i] + (1 - beta) * p2[i])
-        c2 = 0.5 * ((1 - beta) * p1[i] + (1 + beta) * p2[i])
-        
-        # Assign offspring values
-        offspring1["features"][i] = c1
-        offspring2["features"][i] = c2
+            c1 = 0.5 * ((1 + beta) * p1[i] + (1 - beta) * p2[i])
+            c2 = 0.5 * ((1 - beta) * p1[i] + (1 + beta) * p2[i])
+            
+            offspring1["features"][i] = c1
+            offspring2["features"][i] = c2
     
     return offspring1, offspring2
 
-def polynomial_mutation(child, eta_m, lower_bound, upper_bound):
+def polynomial_mutation(child, eta_m, lower_bound, upper_bound, feature_ranges):
     """
-    Performs polynomial mutation on a child individual.
-    
+    Performs adaptive polynomial mutation on a child individual.
+
     Args:
-        child (np.array): The child individual to mutate.
+        child (dict): The child individual to mutate, with 'features' key containing the array.
         eta_m (float): The mutation distribution index.
         lower_bound (np.array): Lower bounds for each feature.
         upper_bound (np.array): Upper bounds for each feature.
-        
+        feature_ranges (list): List of tuples (low, high) for each feature.
+
     Returns:
-        np.array: The mutated child individual.
+        dict: The mutated child individual.
     """
     for k in range(len(child["features"])):
-        rk = random.random()
-        if rk < 0.5:
-            delta_k = (2*rk)**(1/(eta_m+1)) - 1
+        # Calculate the median of the feature range
+        median = (upper_bound[k] + lower_bound[k]) / 2
+
+        if feature_ranges[k] == (0, 1):
+            # Binary feature, flip based on mutation probability
+            if random.random() < 0.1:  # Example mutation probability
+                child["features"][k] = 1 - child["features"][k]
         else:
-            delta_k = 1 - (2*(1-rk))**(1/(eta_m+1))
-        
-        # Mutation operation
-        # print(f"child = {child}")
-        child["features"][k] = child["features"][k] + (upper_bound[k] - lower_bound[k]) * delta_k
-        
-        # Ensure that the mutated features is within bounds
-        child["features"][k] = min(max(child["features"][k], lower_bound[k]), upper_bound[k])
-    
+            # Perform standard polynomial mutation
+            rk = random.random()
+            if rk < 0.5:
+                delta_k = (2 * rk)**(1 / (eta_m + 1)) - 1
+            else:
+                delta_k = 1 - (2 * (1 - rk))**(1 / (eta_m + 1))
+
+            # Determine mutation step size based on proximity to the median
+            step_size = (upper_bound[k] - lower_bound[k]) * delta_k
+            distance_to_median = abs(child["features"][k] - median)
+            # Scale the mutation step size based on distance to median (adaptive component)
+            step_size *= (1 - (distance_to_median / (upper_bound[k] - lower_bound[k])))
+
+            child["features"][k] += step_size
+            # Ensure mutated feature remains within bounds
+            child["features"][k] = np.clip(child["features"][k], lower_bound[k], upper_bound[k])
+
     return child
 
-def generate_offspring(selected_individuals, eta_c, eta_m, lower_bound, upper_bound, population_size):
+def generate_offspring(selected_individuals, eta_c, eta_m, lower_bound, upper_bound, population_size,feature_ranges):
     new_generation = []
     
     # Ensure we have an even number of individuals for pairing
@@ -293,11 +311,11 @@ def generate_offspring(selected_individuals, eta_c, eta_m, lower_bound, upper_bo
         for i in range(0, len(selected_individuals), 2):
             parent1, parent2 = selected_individuals[i]["features"], selected_individuals[i+1]["features"]
             # Apply crossover
-            offspring1, offspring2 = sbx_crossover(parent1, parent2, eta_c)
+            offspring1, offspring2 = sbx_crossover(parent1, parent2, eta_c,feature_ranges)
             
             # Apply mutation
-            offspring1 = polynomial_mutation(offspring1, eta_m, lower_bound, upper_bound)
-            offspring2 = polynomial_mutation(offspring2, eta_m, lower_bound, upper_bound)
+            offspring1 = polynomial_mutation(offspring1, eta_m, lower_bound, upper_bound,feature_ranges)
+            offspring2 = polynomial_mutation(offspring2, eta_m, lower_bound, upper_bound,feature_ranges)
             
             # Add offspring to the new generation
             new_generation.extend([offspring1, offspring2])
@@ -322,10 +340,19 @@ def calculate_R_hat(x_observational):
     maxs = x_observational.max(axis=0)
     R_hat = maxs - mins
     return R_hat
+
 def generate_random_individual(feature_ranges):
-    individual = {'features': np.array([np.random.uniform(low, high) for feature, (low, high) in feature_ranges.items()]),
-                  'np': 0, 'Sp': [], 'crowding_distance': 0}
+    individual = {'features': np.zeros(len(feature_ranges))}
+    for i, ((low, high)) in enumerate(feature_ranges.values()):
+        if low == 0 and high == 1:
+            # If the range is 0 to 1, assign randomly either 0 or 1
+            individual['features'][i] = random.choice([0, 1])
+        else:
+            # Otherwise, assign a random value within the range
+            individual['features'][i] = np.random.uniform(low, high)
+    individual.update({'np': 0, 'Sp': [], 'crowding_distance': 0})
     return individual
+
 def generate_population(population_size, feature_ranges):
     population = []
     for _ in range(population_size):
@@ -394,8 +421,8 @@ def create_counterfactuals(x_original, x_observational, y_target, model_predict,
         fronts = nonDominatedSorting(population,x_observational,x_original,model_predict,y_target,R_hat)
         assign_crowding_distance(fronts, y_target,R_hat,model_predict,x_observational,x_original)
         survived = crowded_tournament_selection(population,population_count/2)
-        population = generate_offspring(survived,eta_c=20,eta_m=20,lower_bound=mins,upper_bound=maxs,population_size=population_count)
-        print(f"generation {i} Created")
+        population = generate_offspring(survived,eta_c=20,eta_m=20,lower_bound=mins,upper_bound=maxs,population_size=population_count,feature_ranges=feature_ranges)
+        # print(f"generation {i} Created")
     
     for i, individual in enumerate(population):
         if(i<10):
@@ -403,3 +430,32 @@ def create_counterfactuals(x_original, x_observational, y_target, model_predict,
         else:
             break
     return population
+def plot_features(x_original, hall_of_fame):
+    columns = [
+    "group", "age", "gendera", "BMI", "hypertensive", "atrialfibrillation", 
+    "CHD with no MI", "diabetes", "deficiencyanemias", "depression", "Hyperlipemia", 
+    "Renal failure", "COPD", "heart rate", "Systolic blood pressure", 
+    "Diastolic blood pressure", "Respiratory rate", "temperature", "SP O2", 
+    "Urine output", "hematocrit", "RBC", "MCH", "MCHC", "MCV", "RDW", "Leucocyte", 
+    "Platelets", "Neutrophils", "Basophils", "Lymphocyte", "PT", "INR", "NT-proBNP", 
+    "Creatine kinase", "Creatinine", "Urea nitrogen", "glucose", "Blood potassium", 
+    "Blood sodium", "Blood calcium", "Chloride", "Anion gap", "Magnesium ion", "PH", 
+    "Bicarbonate", "Lactic acid", "PCO2", "EF"
+    ]
+    df = pd.DataFrame({
+    'Feature': columns,
+    'Original': x_original,
+    'HallOfFame': hall_of_fame
+    })
+    df.set_index('Feature', inplace=True)
+
+    # Plotting the data
+    ax = df.plot(kind='bar', figsize=(10, 5))
+    plt.title('Comparison of Original Individual and Hall of Fame Individual')
+    plt.ylabel('Value')
+    plt.xlabel('Feature')
+    plt.xticks(rotation=45)  # Rotate feature names for better visibility
+    plt.grid(True, linestyle='--', linewidth=0.5)
+    plt.legend(loc='upper right')
+    plt.tight_layout()
+    plt.show()
