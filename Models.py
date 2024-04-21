@@ -9,6 +9,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.svm import SVC
 import os
 import NSGA_vanilla as nsga
+import matplotlib.pyplot as plt
 print(os.getcwd())
 # Load the dataset
 # Note: Replace 'your_data.csv' with the actual path to your CSV file
@@ -17,7 +18,7 @@ df = pd.read_csv('data01.csv')
 # Split the DataFrame into features and target
 # Note: Replace 'target_column' with the name of your target column
 X = df.drop('outcome', axis=1)
-# X = X.drop('ID', axis=1)
+X = X.drop('ID', axis=1)
 # X = X.drop('group', axis=1)
 y = df['outcome']
 
@@ -62,7 +63,7 @@ y_pred = logistic_model.predict(X_test_scaled)
 
 #performance
 accuracy = accuracy_score(y_test, y_pred)
-print(f"Accuracy: {accuracy}")
+print(f"Logistic Regression Accuracy: {accuracy}")
 
 #Support Vector Machine
 print("\n\nSupport Vector Machines\n")
@@ -89,8 +90,8 @@ print("SVM (polinomial kernel) Accuracy:", svm_accuracy_poly)
 #         print(prediction)
 # 
 arguement = X_imputed.iloc[[47]].copy()  # Use double brackets to keep it as a DataFrame
-prediction = logistic_model.predict(arguement)
-print(prediction)
+# prediction = logistic_model.predict(arguement)
+# print(prediction)
 test_input = X_imputed.iloc[0:1, :]  # Taking the first row and ensuring it's a DataFrame
 # arguement['age'] = 49
 # prediction = pipeline.predict(arguement)
@@ -100,11 +101,16 @@ test_input = X_imputed.iloc[0:1, :]  # Taking the first row and ensuring it's a 
 # print(prediction)
 # usually accuracy is 86-87%
 #lets implement our NSGA-II algorithm  deap
-final_population = nsga.create_counterfactuals(X_imputed.iloc[[47]].to_numpy(),X_imputed.to_numpy(),0,logistic_model.predict,250,100)
+lr_final_population = nsga.create_counterfactuals(X_imputed.iloc[[47]].to_numpy(),X_imputed.to_numpy(),0,logistic_model.predict,250,100)
 # After running the algorithm
-print(f"Final Population's Fitness:{final_population[0]}")
+print(f"Final Population's Fitness:{lr_final_population[0]}")
 
 # for ind in final_population:
 #     print(ind)
 
+nsga.plot_features(X_imputed.iloc[47].to_numpy().flatten(),lr_final_population[0]["features"])
+
+
+svm_final_population = nsga.create_counterfactuals(X_imputed.iloc[[47]].to_numpy(),X_imputed.to_numpy(),0,svm_model.predict,250,100)
+nsga.plot_features(X_imputed.iloc[47].to_numpy().flatten(),svm_final_population[0]["features"])
 print("Hall of Fame Individuals:")
