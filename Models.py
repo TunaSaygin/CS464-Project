@@ -5,7 +5,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay
 from sklearn.svm import SVC
 import os
 import NSGA_vanilla as nsga
@@ -114,3 +114,19 @@ nsga.plot_features(X_imputed.iloc[47].to_numpy().flatten(),lr_final_population[0
 svm_final_population = nsga.create_counterfactuals(X_imputed.iloc[[47]].to_numpy(),X_imputed.to_numpy(),0,svm_model.predict,250,100)
 nsga.plot_features(X_imputed.iloc[47].to_numpy().flatten(),svm_final_population[0]["features"])
 print("Hall of Fame Individuals:")
+
+# confusion matrix for svm linear
+conf_matrix = confusion_matrix(y_test, y_pred_svm_linear)
+print(conf_matrix)
+disp = ConfusionMatrixDisplay(confusion_matrix=conf_matrix, display_labels= ["Survived", "Died"])
+disp.plot()
+plt.title("Confusion Matrix for SVM (linear)")
+plt.show()
+
+# confusion matrix for svm poly
+conf_matrix = confusion_matrix(y_test, y_pred_svm_poly)
+print(conf_matrix)
+disp = ConfusionMatrixDisplay(confusion_matrix=conf_matrix, display_labels= ["Survived", "Died"])
+disp.plot()
+plt.title("Confusion Matrix for SVM (polynomial)")
+plt.show()
