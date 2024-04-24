@@ -7,6 +7,8 @@ import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import confusion_matrix
+import seaborn as sns
 
 # Data loading and preprocessing
 current_path = os.getcwd()
@@ -68,6 +70,18 @@ with torch.no_grad():
 
 print(f'Accuracy: {accuracy:.4f}')
 
+# Compute the confusion matrix
+cm = confusion_matrix(y_test.numpy(), predictions.numpy())
+print("Confusion Matrix:")
+print(cm)
+
+# Plotting the confusion matrix
+plt.figure(figsize=(8, 6))
+sns.heatmap(cm, annot=True, fmt='d', cmap='YlGnBu', xticklabels=['Survived', 'Died'], yticklabels=['Survived', 'Died'])
+plt.xlabel('Predicted Label')
+plt.ylabel('True Label')
+plt.title('Confusion Matrix')
+plt.show()
 
 
 # plot the graphs
