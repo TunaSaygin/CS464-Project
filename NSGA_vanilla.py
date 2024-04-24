@@ -353,9 +353,29 @@ def generate_random_individual(feature_ranges):
     individual.update({'np': 0, 'Sp': [], 'crowding_distance': 0})
     return individual
 
-def generate_population(population_size, feature_ranges):
+def generate_seeded_individual(feature_ranges, actual_data_point):
+    individual = {'features': np.zeros(len(feature_ranges))}
+    for i, ((low, high)) in enumerate(feature_ranges.values()):
+        # Use the actual data point for seeding with some added randomness
+        # For binary features, use the actual value
+        if low == 0 and high == 1:
+            individual['features'][i] = actual_data_point[i]
+        else:
+            # For continuous features, introduce slight randomness around the actual value
+            perturbation = (high - low) * 0.1  # Adjust the perturbation scale as needed
+            individual['features'][i] = np.clip(actual_data_point[i] + np.random.uniform(-perturbation, perturbation), low, high)
+    individual.update({'np': 0, 'Sp': [], 'crowding_distance': 0})
+    return individual
+
+def generate_population(population_size, feature_ranges, actual_dataset):
     population = []
-    for _ in range(population_size):
+    # Seed with actual data points
+    num_seeds = int(population_size * 0.1)  # Adjust the proportion as needed
+    for _ in range(num_seeds):
+        actual_data_point = actual_dataset[np.random.randint(len(actual_dataset))]
+        population.append(generate_seeded_individual(feature_ranges, actual_data_point))
+    # Generate the rest as random
+    for _ in range(population_size - num_seeds):
         population.append(generate_random_individual(feature_ranges))
     return population
 def prepare_batch(population):
@@ -413,7 +433,7 @@ def compute_objectives(population, x_observational, x_original, y_prime, R_hat):
 def create_counterfactuals(x_original, x_observational, y_target, model_predict,generations=50, population_count=100):
     feature_ranges, mins, maxs = get_feature_range(x_observational)
     R_hat = calculate_R_hat(x_observational)
-    population = generate_population(population_count,feature_ranges)
+    population = generate_population(population_count,feature_ranges,x_original)
     # print(population)
     for i in range(generations):
         assign_predictions(population,model_predict)
@@ -423,11 +443,15 @@ def create_counterfactuals(x_original, x_observational, y_target, model_predict,
         survived = crowded_tournament_selection(population,population_count/2)
         population = generate_offspring(survived,eta_c=20,eta_m=20,lower_bound=mins,upper_bound=maxs,population_size=population_count,feature_ranges=feature_ranges)
         # print(f"generation {i} Created")
-    
+    #assign predictions for the final generation
+    assign_predictions(population,model_predict)
+    distilled_population = []
+    individual_count = 0
     for i, individual in enumerate(population):
-        if(i<10):
-            print(individual)
-        else:
+        if(individual['prediction'] == y_target):
+            distilled_population.append(individual)
+            individual_count +=1
+        if individual_count >10:
             break
     return population
 def plot_features(x_original, hall_of_fame):

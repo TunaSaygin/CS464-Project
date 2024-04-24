@@ -104,6 +104,7 @@ test_input = X_imputed.iloc[0:1, :]  # Taking the first row and ensuring it's a 
 lr_final_population = nsga.create_counterfactuals(X_imputed.iloc[[47]].to_numpy(),X_imputed.to_numpy(),0,logistic_model.predict,250,100)
 # After running the algorithm
 print(f"Final Population's Fitness:{lr_final_population[0]}")
+print(f"Final Population's first value{logistic_model.predict(lr_final_population[0]['features'].reshape(1,-1))}")
 
 # for ind in final_population:
 #     print(ind)
