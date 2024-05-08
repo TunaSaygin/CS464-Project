@@ -14,20 +14,20 @@ import seaborn as sns
 current_path = os.getcwd()
 parent_path = os.path.abspath(os.path.join(current_path, os.pardir))
 
-file_path_x = f'{parent_path}/data_imputed.csv'
-file_path_y = f'{parent_path}/data01.csv'
+file_path_x = f'{parent_path}/resampled_data.csv'
+file_path_y = f'{parent_path}/resampled_data.csv'
 
 data_x = pd.read_csv(file_path_x)
 data_y = pd.read_csv(file_path_y)
 
-data_x = data_x.drop(columns=['ID'])
+data_x = data_x.drop(columns=['ID', 'group'])
 data_y = data_y[["outcome"]]
 
 # Standardize features
 scaler = StandardScaler()
 data_x = scaler.fit_transform(data_x)
 
-X_train, X_test, y_train, y_test = train_test_split(data_x, data_y.values, test_size=0.2, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(data_x, data_y.values, test_size=0.2, random_state=2001)
 
 # Tensor conversion
 X_train = torch.tensor(X_train, dtype=torch.float32)
@@ -83,7 +83,7 @@ plt.ylabel('True Label')
 plt.title('Confusion Matrix')
 plt.show()
 
-
+"""
 # plot the graphs
 x = torch.linspace(-5, 5, 100).reshape(-1, 1)
 x = torch.hstack(n_features*[x])
@@ -94,3 +94,4 @@ for i in range(n_features):
         model.get_submodule('lr').weight[0][i].item() * model.get_submodule('features')(x)[:, i].detach().numpy())
     plt.title(f'Feature {i+1}')
     plt.show()
+"""
