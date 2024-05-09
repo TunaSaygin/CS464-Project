@@ -36,9 +36,9 @@ data_x = scaler.fit_transform(data_x)"""
 # Model configuration
 n_features = 50
 n_nodes = 100
-num_of_epochs = 100
-train_batch = 64
-test_batch = 64
+num_of_epochs = 20
+train_batch = 32
+test_batch = 32
 
 # Get the dataset
 X_train, y_train, X_val, y_val, X_test, y_test = get_datasets.get_datasets(parent_path+"/merged_data.csv")
@@ -61,7 +61,7 @@ test_loader = DataLoader(TensorDataset(X_test, y_test), batch_size=test_batch, s
 
 # Model, optimizer and loss function
 model = Model(n_features, n_nodes)
-optimizer = torch.optim.Adam(model.parameters(), lr=6e-3)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 criterion = torch.nn.BCEWithLogitsLoss()  # Using BCEWithLogitsLoss
 
 # start training
@@ -88,7 +88,12 @@ for epoch in range(num_of_epochs):
 
         predicted = torch.argmax(outputs.data, 1)
         total += targets.size(0)
+        print("predicted: ", predicted)
+        print("targets: ", targets)
         correct += (predicted == targets).sum().item()
+        print("correct :", correct)
+        print("total: ", total)
+        break
 
     print("loss: ", running_loss)
     train_loss = running_loss / len(train_loader.dataset)
