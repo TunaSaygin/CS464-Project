@@ -2,9 +2,8 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import ADASYN
 
-def get_datasets():
+def get_datasets(data_path):
     # Load your dataset
-    data_path = 'merged_data.csv'  # Replace with your actual file path
     data = pd.read_csv(data_path)
 
     # Separate features and target variable
@@ -22,11 +21,11 @@ def get_datasets():
 
     # Verify the splits
     print("Training set:")
-    print(y_train.value_counts)
+    print(y_train.value_counts(normalize=True))
     print("Validation set:")
-    print(y_val.value_counts)
+    print(y_val.value_counts(normalize=True))
     print("Test set:")
-    print(y_test.value_counts)
+    print(y_test.value_counts(normalize=True))
 
     # Initialize the ADASYN model
     ada = ADASYN(random_state=42)
@@ -38,8 +37,4 @@ def get_datasets():
     resampled_data = pd.DataFrame(X_resampled, columns=X_train.columns)
     resampled_data['outcome'] = y_resampled
 
-    print("Train set after generating new data:")
-    print(y_resampled.value_counts)
-
     return X_resampled, y_resampled, X_val, y_val, X_test, y_test
-
