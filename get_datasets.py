@@ -36,5 +36,17 @@ def get_datasets(data_path):
     # Combine the resampled features and outcomes back into a dataframe
     resampled_data = pd.DataFrame(X_resampled, columns=X_train.columns)
     resampled_data['outcome'] = y_resampled
-
+    print("Resampled Training set:")
+    print(y_resampled.value_counts(normalize=True))
+    X_resampled = X_resampled.drop('outcome', axis=1)
+    X_resampled = X_resampled.drop('group', axis=1)
+    X_resampled = X_resampled.drop('ID', axis=1)
+    X_test = X_test.drop('group', axis=1)
+    X_test = X_test.drop('ID', axis=1)
+    X_val = X_val.drop('group', axis=1)
+    X_val = X_val.drop('ID', axis=1)
+    print(f"Length of X_train_resampled: {len(X_resampled)}")
+    print(f"Length of y_train_resampled: {len(y_resampled)}")
     return X_resampled, y_resampled, X_val, y_val, X_test, y_test
+
+get_datasets("merged_data.csv")

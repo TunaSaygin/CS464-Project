@@ -1,4 +1,5 @@
 import pandas as pd
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.model_selection import train_test_split
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
@@ -10,56 +11,75 @@ from sklearn.svm import SVC
 import os
 import NSGA_vanilla as nsga
 import matplotlib.pyplot as plt
-print(os.getcwd())
-# Load the dataset
-# Note: Replace 'your_data.csv' with the actual path to your CSV file
-df = pd.read_csv('data01.csv')
+import shap
+from imblearn.over_sampling import ADASYN
+import get_datasets as get_ds
+# import dice_ml
+# from dice_ml.utils import helpers  # helper functions
+# print(os.getcwd())
+# # Load the dataset
+# # Note: Replace 'your_data.csv' with the actual path to your CSV file
+# df = pd.read_csv('data01.csv')
 
-# Split the DataFrame into features and target
-# Note: Replace 'target_column' with the name of your target column
-X = df.drop('outcome', axis=1)
-X = X.drop('ID', axis=1)
-# X = X.drop('group', axis=1)
-y = df['outcome']
+# # Split the DataFrame into features and target
+# # Note: Replace 'target_column' with the name of your target column
+# X = df.drop('outcome', axis=1)
+# X = X.drop('ID', axis=1)
+# # X = X.drop('group', axis=1)
+# y = df['outcome']
 
-# Split the data into training and testing sets
+# # Split the data into training and testing sets
 
-# Identify numerical and categorical columns
-numerical_cols = X.select_dtypes(include=['int64', 'float64']).columns
-# categorical_cols = X.select_dtypes(include=['object']).columns
-# print("Length: " + str(len(categorical_cols)))
-# Create imputers for numerical and categorical data
-numerical_imputer = SimpleImputer(strategy='mean')
-# categorical_imputer = SimpleImputer(strategy='most_frequent')
+# # Identify numerical and categorical columns
+# numerical_cols = X.select_dtypes(include=['int64', 'float64']).columns
+# # categorical_cols = X.select_dtypes(include=['object']).columns
+# # print("Length: " + str(len(categorical_cols)))
+# # Create imputers for numerical and categorical data
+# numerical_imputer = SimpleImputer(strategy='mean')
+# # categorical_imputer = SimpleImputer(strategy='most_frequent')
 
-# Impute missing values in numerical columns
-X_numerical = pd.DataFrame(numerical_imputer.fit_transform(X[numerical_cols]), columns=numerical_cols)
+# # Impute missing values in numerical columns
+# X_numerical = pd.DataFrame(numerical_imputer.fit_transform(X[numerical_cols]), columns=numerical_cols)
 
-# Check if there are any categorical columns before proceeding
-# if len(categorical_cols) > 0:
-#     # Impute missing values in categorical columns
-#     X_categorical = pd.DataFrame(categorical_imputer.fit_transform(X[categorical_cols]), columns=categorical_cols)
-#     # Combine the imputed numerical and categorical data
-#     X_imputed = pd.concat([X_numerical, X_categorical], axis=1)
-# else:
-X_imputed = X_numerical  # Only numerical data present
-# X_imputed.to_csv('data_imputed.csv', index=False)
-# Output the first few rows of the imputed training data and check for any remaining missing values
-print(X_imputed.head())
-X_train, X_test, y_train, y_test = train_test_split(X_imputed, y, test_size=0.2, random_state=42)
-print("Remaining missing values:", X_imputed.isnull().sum().sum())
-# Initialize the scaler
+# # Check if there are any categorical columns before proceeding
+# # if len(categorical_cols) > 0:
+# #     # Impute missing values in categorical columns
+# #     X_categorical = pd.DataFrame(categorical_imputer.fit_transform(X[categorical_cols]), columns=categorical_cols)
+# #     # Combine the imputed numerical and categorical data
+# #     X_imputed = pd.concat([X_numerical, X_categorical], axis=1)
+# # else:
+# X_imputed = X_numerical  # Only numerical data present
+# # X_imputed.to_csv('data_imputed.csv', index=False)
+# # Output the first few rows of the imputed training data and check for any remaining missing values
+# print(X_imputed.head())
+
+
+# X_train, X_test, y_train, y_test = train_test_split(X_imputed, y, test_size=0.2, random_state=42)
+# print("Remaining missing values:", X_imputed.isnull().sum().sum())
+# # Initialize the scaler
+# adasyn = ADASYN(random_state=42)
+
+# # Resample the dataset
+# X_train, y_train = adasyn.fit_resample(X_train, y_train)
+X_train,y_train, X_val, y_val, X_test, y_test = get_ds.get_datasets("merged_data.csv")
+# print(X_train['outcome'])
+# Create an ADASYN instance
 scaler = StandardScaler()
-
 # Fit the scaler on the training data and transform both training and testing data
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
+X_val_scaled = scaler.transform(X_val)
+print(f"Length of X_train_scaled: {len(X_train_scaled)}")
 ## after impuding I will train a logistic regression classifier and look at its performance
 # Initialize the Logistic Regression classifier
 # Initialize and train the logistic regression model
 logistic_model = LogisticRegression(max_iter=1500)
 logistic_model.fit(X_train_scaled, y_train)
 y_pred = logistic_model.predict(X_test_scaled)
+explainer = shap.Explainer(logistic_model, X_train)
+shap_values = explainer(X_test_scaled)
+shap.summary_plot(shap_values, X_test_scaled)
+
 
 #performance
 accuracy = accuracy_score(y_test, y_pred)
@@ -89,10 +109,18 @@ print("SVM (polinomial kernel) Accuracy:", svm_accuracy_poly)
 #         print(arguement)
 #         print(prediction)
 # 
-arguement = X_imputed.iloc[[47]].copy()  # Use double brackets to keep it as a DataFrame
+# getting the dead values
+X_test_filtered = X_test[y_test == 1]
+y_test_filtered = y_test[y_test == 1]
+arguement = X_test_filtered.iloc[[0]].copy()  # Use double brackets to keep it as a DataFrame
+X_test_filtered_array = X_test_filtered.to_numpy()
+y_test_filtered_array = y_test_filtered.to_numpy()
+print(y_test_filtered_array)
+print(X_test_filtered_array[0])
+# print(y_test)
 # prediction = logistic_model.predict(arguement)
 # print(prediction)
-test_input = X_imputed.iloc[0:1, :]  # Taking the first row and ensuring it's a DataFrame
+# test_input = X_imputed.iloc[0:1, :]  # Taking the first row and ensuring it's a DataFrame
 # arguement['age'] = 49
 # prediction = pipeline.predict(arguement)
 # print(prediction)
@@ -101,19 +129,37 @@ test_input = X_imputed.iloc[0:1, :]  # Taking the first row and ensuring it's a 
 # print(prediction)
 # usually accuracy is 86-87%
 #lets implement our NSGA-II algorithm  deap
-lr_final_population = nsga.create_counterfactuals(X_imputed.iloc[[47]].to_numpy(),X_imputed.to_numpy(),0,logistic_model.predict,250,100)
-# After running the algorithm
-print(f"Final Population's Fitness:{lr_final_population[0]}")
-print(f"Final Population's first value{logistic_model.predict(lr_final_population[0]['features'].reshape(1,-1))}")
 
 # for ind in final_population:
 #     print(ind)
+# X_train_dice = X_train.copy()
+# X_train_dice['Outcome'] = y_train
+# svm_wrapper = CalibratedClassifierCV(svm_model)
+# svm_wrapper.fit(X_train,y_train)
+# Prepare data for DiCE
+# d =dice_ml.Data(dataframe=X_train_dice, continuous_features=X_train.columns.tolist(), outcome_name='Outcome')
+# Create a DiCE model object
+# m_linear = dice_ml.Model(model=svm_wrapper, backend='sklearn')
 
-nsga.plot_features(X_imputed.iloc[47].to_numpy().flatten(),lr_final_population[0]["features"])
+# Create DiCE explainers
+# exp_linear = dice_ml.Dice(d, m_linear)
+
+# Generate counterfactuals using the linear kernel SVM model
+print("Generating counterfactuals for linear SVM...")
+# cf_linear = exp_linear.generate_counterfactuals(X_imputed.iloc[[47]], total_CFs=5, desired_class="opposite")
+# cf_linear.visualize_as_dataframe(show_only_changes=True)
+
+lr_final_population = nsga.create_counterfactuals(X_test_filtered_array[0],X_test_filtered_array,0,logistic_model.predict,400,100)
+# After running the algorithm
+print(f"Final Population's Fitness:{lr_final_population[0]}")
+print(f"Final Population's first value{logistic_model.predict(lr_final_population[0]['features'].reshape(1,-1))}")
+print("lr_final population[0] = ",lr_final_population[0])
+nsga.plot_features(X_test_filtered_array[0],lr_final_population[0]["features"],y_test_filtered_array[0],lr_final_population[0]["prediction"])
 
 
-svm_final_population = nsga.create_counterfactuals(X_imputed.iloc[[47]].to_numpy(),X_imputed.to_numpy(),0,svm_model.predict,250,100)
-nsga.plot_features(X_imputed.iloc[47].to_numpy().flatten(),svm_final_population[0]["features"])
+svm_final_population = nsga.create_counterfactuals(X_test_filtered_array[0],X_test_filtered_array,0,svm_model.predict,250,100)
+print("SVM_final population[0] = ",svm_final_population[0])
+nsga.plot_features(X_test_filtered_array[0],svm_final_population[0]["features"],y_test_filtered_array[0],svm_final_population[0]["prediction"])
 print("Hall of Fame Individuals:")
 
 # confusion matrix for svm linear

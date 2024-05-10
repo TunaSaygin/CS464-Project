@@ -20,17 +20,18 @@ def o2(x, x_prime, R_hat)->float:
     Objective to quantify the Gower distance between x_prime and x.
     """
     # 
-    # print(f"\n\nx[0] = {x[0]},\n x_prime={x_prime} and \n R_hat = {R_hat}")
+    # print(f"\n\nx = {x},\n x_prime={x_prime} and \n R_hat = {R_hat}")
     if(type(x_prime) is dict):
         return sum(
-        delta_G(x[0][j], x_prime['features'][j], R_hat[j])
-        for j in range(len(x[0]))
-         ) / len(x[0])
+        delta_G(x[j], x_prime['features'][j], R_hat[j])
+        for j in range(len(x))
+         ) / len(x)
     else:
         gower_distance = sum(
-            delta_G(x[0][j], x_prime[j], R_hat[j])
-            for j in range(len(x[0]))
-        ) / len(x[0])
+            delta_G(x[j], x_prime[j], R_hat[j])
+            for j in range(len(x))
+        ) / len(x)
+        # print("gower_distance = ", gower_distance)
         return gower_distance
 
 def o3(x, x_prime)->float:
@@ -39,8 +40,8 @@ def o3(x, x_prime)->float:
     """
     # print(f"x[0] = {x[0]}, x_prime={x_prime}")
     if(type(x_prime) is dict):
-        return sum(1 for j in range(len(x[0])) if x[0][j] != x_prime["features"][j])
-    return sum(1 for j in range(len(x[0])) if x[0][j] != x_prime[j])
+        return sum(1 for j in range(len(x)) if x[j] != x_prime["features"][j])
+    return sum(1 for j in range(len(x)) if x[j] != x_prime[j])
 
 def o4(x_prime, x_obs, R_hat)->float:
     """
@@ -204,7 +205,10 @@ def crowded_comparison_operator(individual1, individual2):
     else:
         return individual2
     
-def crowded_tournament_selection(population, k):
+def sort_population_by_objectives(population, target_outcome):
+    # Sort population based on the absolute difference from the target for o1 and then by o2
+    return sorted(population, key=lambda x: (abs(x['o1'] - target_outcome), x['o2']))
+def crowded_tournament_selection(population, k, target_outcome):
     """
     Performs tournament selection based on crowding distance and non-domination rank.
     
@@ -216,42 +220,45 @@ def crowded_tournament_selection(population, k):
         list: A list of selected individuals.
     """
     selected = []
-
+    sorted_population = sort_population_by_objectives(population,target_outcome)
+    weights = [1 / (i + 1) for i in range(len(sorted_population))]  # Higher weight to lower index (better rank)
     while len(selected) < k:
         # Randomly select two individuals from the population for the tournament
-        i, j = random.sample(range(len(population)), 2)
-        winner = crowded_comparison_operator(population[i], population[j])
+        i, j = random.choices(range(len(sorted_population)), weights=weights, k=2)
+        winner = crowded_comparison_operator(sorted_population[i], sorted_population[j])
         selected.append(winner)
 
     return selected
 def sbx_crossover(p1, p2, eta_c=30,feature_ranges=None):
+    p1, mutable1 = np.array(p1["features"]), p1["mutable_features"]
+    p2, mutable2 = np.array(p2["features"]), p2["mutable_features"]
     p1 = np.array(p1)
     p2 = np.array(p2)
     u = random.random()
-    offspring1 = {}
-    offspring2 = {}
-    offspring1["features"] = np.zeros_like(p1)
-    offspring2["features"] = np.zeros_like(p2)
+    offspring1 = {"features": p1, "mutable_features": mutable1}
+    offspring2 = {"features": p2, "mutable_features": mutable2}
     # print(f"p1={p1}")
     # Perform crossover for each element
     for i in range(len(p1)):
-        if feature_ranges[i] == (0, 1):
-            # Binary feature, pick randomly from parents
-            offspring1["features"][i] = random.choice([p1[i], p2[i]])
-            offspring2["features"][i] = random.choice([p1[i], p2[i]])
-        else:
-            # Perform standard SBX crossover
-            u = random.random()
-            if u <= 0.5:
-                beta = (2 * u)**(1 / (eta_c + 1))
+        if (mutable1[i] or mutable2[i]) and random.random()>0.8:
+            offspring1["mutable_features"][i] = offspring2["mutable_features"][i] = True
+            if feature_ranges[i] == (0, 1):
+                # Binary feature, pick randomly from parents
+                offspring1["features"][i] = random.choice([p1[i], p2[i]])
+                offspring2["features"][i] = random.choice([p1[i], p2[i]])
             else:
-                beta = (1 / (2 * (1 - u)))**(1 / (eta_c + 1))
+                # Perform standard SBX crossover
+                u = random.random()
+                if u <= 0.5:
+                    beta = (2 * u)**(1 / (eta_c + 1))
+                else:
+                    beta = (1 / (2 * (1 - u)))**(1 / (eta_c + 1))
 
-            c1 = 0.5 * ((1 + beta) * p1[i] + (1 - beta) * p2[i])
-            c2 = 0.5 * ((1 - beta) * p1[i] + (1 + beta) * p2[i])
-            
-            offspring1["features"][i] = c1
-            offspring2["features"][i] = c2
+                c1 = 0.5 * ((1 + beta) * p1[i] + (1 - beta) * p2[i])
+                c2 = 0.5 * ((1 - beta) * p1[i] + (1 + beta) * p2[i])
+                
+                offspring1["features"][i] = c1
+                offspring2["features"][i] = c2
     
     return offspring1, offspring2
 
@@ -272,28 +279,28 @@ def polynomial_mutation(child, eta_m, lower_bound, upper_bound, feature_ranges):
     for k in range(len(child["features"])):
         # Calculate the median of the feature range
         median = (upper_bound[k] + lower_bound[k]) / 2
-
-        if feature_ranges[k] == (0, 1):
-            # Binary feature, flip based on mutation probability
-            if random.random() < 0.1:  # Example mutation probability
-                child["features"][k] = 1 - child["features"][k]
-        else:
-            # Perform standard polynomial mutation
-            rk = random.random()
-            if rk < 0.5:
-                delta_k = (2 * rk)**(1 / (eta_m + 1)) - 1
+        if child["mutable_features"][k]:  # Check if feature is mutable
+            if feature_ranges[k] == (0, 1):
+                # Binary feature, flip based on mutation probability
+                if random.random() < 0.1:  # Example mutation probability
+                    child["features"][k] = 1 - child["features"][k]
             else:
-                delta_k = 1 - (2 * (1 - rk))**(1 / (eta_m + 1))
+                # Perform standard polynomial mutation
+                rk = random.random()
+                if rk < 0.5:
+                    delta_k = (2 * rk)**(1 / (eta_m + 1)) - 1
+                else:
+                    delta_k = 1 - (2 * (1 - rk))**(1 / (eta_m + 1))
 
-            # Determine mutation step size based on proximity to the median
-            step_size = (upper_bound[k] - lower_bound[k]) * delta_k
-            distance_to_median = abs(child["features"][k] - median)
-            # Scale the mutation step size based on distance to median (adaptive component)
-            step_size *= (1 - (distance_to_median / (upper_bound[k] - lower_bound[k])))
+                # Determine mutation step size based on proximity to the median
+                step_size = (upper_bound[k] - lower_bound[k]) * delta_k
+                distance_to_median = abs(child["features"][k] - median)
+                # Scale the mutation step size based on distance to median (adaptive component)
+                step_size *= (1 - (distance_to_median / (upper_bound[k] - lower_bound[k])))
 
-            child["features"][k] += step_size
-            # Ensure mutated feature remains within bounds
-            child["features"][k] = np.clip(child["features"][k], lower_bound[k], upper_bound[k])
+                child["features"][k] += step_size
+                # Ensure mutated feature remains within bounds
+                child["features"][k] = np.clip(child["features"][k], lower_bound[k], upper_bound[k])
 
     return child
 
@@ -309,7 +316,7 @@ def generate_offspring(selected_individuals, eta_c, eta_m, lower_bound, upper_bo
     
     while len(new_generation) < population_size:
         for i in range(0, len(selected_individuals), 2):
-            parent1, parent2 = selected_individuals[i]["features"], selected_individuals[i+1]["features"]
+            parent1, parent2 = selected_individuals[i], selected_individuals[i+1]
             # Apply crossover
             offspring1, offspring2 = sbx_crossover(parent1, parent2, eta_c,feature_ranges)
             
@@ -354,26 +361,33 @@ def generate_random_individual(feature_ranges):
     return individual
 
 def generate_seeded_individual(feature_ranges, actual_data_point):
-    individual = {'features': np.zeros(len(feature_ranges))}
-    for i, ((low, high)) in enumerate(feature_ranges.values()):
-        # Use the actual data point for seeding with some added randomness
-        # For binary features, use the actual value
-        if low == 0 and high == 1:
-            individual['features'][i] = actual_data_point[i]
+    # print("Acutal datapoint: ",actual_data_point)
+    num_features_to_change = random.randint(4, 8)  # Randomly determine number of features to change
+    individual = {
+                    'features': np.zeros(len(feature_ranges)),
+                    'mutable_features': [False] * len(feature_ranges)
+                }
+    features_to_change = random.sample(list(feature_ranges.keys()), num_features_to_change)
+    for i, key in enumerate(feature_ranges):
+        (low, high) = feature_ranges[key]
+        if key in features_to_change:
+            if low == 0 and high == 1:
+                individual['features'][i] = actual_data_point[i]
+            else:
+                perturbation = (high - low) * 0.2  # Adjust the perturbation scale as needed
+                individual['features'][i] = np.clip(actual_data_point[i] + np.random.uniform(-perturbation, perturbation), low, high)
+            individual['mutable_features'][i] = True
         else:
-            # For continuous features, introduce slight randomness around the actual value
-            perturbation = (high - low) * 0.1  # Adjust the perturbation scale as needed
-            individual['features'][i] = np.clip(actual_data_point[i] + np.random.uniform(-perturbation, perturbation), low, high)
+            individual['features'][i] = actual_data_point[i]  # keep original for unchanged features
     individual.update({'np': 0, 'Sp': [], 'crowding_distance': 0})
     return individual
 
 def generate_population(population_size, feature_ranges, actual_dataset):
     population = []
     # Seed with actual data points
-    num_seeds = int(population_size * 0.1)  # Adjust the proportion as needed
+    num_seeds = int(population_size * 1)  # Adjust the proportion as needed
     for _ in range(num_seeds):
-        actual_data_point = actual_dataset[np.random.randint(len(actual_dataset))]
-        population.append(generate_seeded_individual(feature_ranges, actual_data_point))
+        population.append(generate_seeded_individual(feature_ranges, actual_dataset))
     # Generate the rest as random
     for _ in range(population_size - num_seeds):
         population.append(generate_random_individual(feature_ranges))
@@ -426,6 +440,7 @@ def compute_objectives(population, x_observational, x_original, y_prime, R_hat):
         ind["o1"] = o1(ind, y_prime)
         # print(f"\n\n\nx_original = {x_original}")
         # Compute o2, o3, o4 values
+        # print("x_original",x_original)
         ind["o2"] = o2(x_original, ind["features"], R_hat)
         ind["o3"] = o3(x_original, ind["features"])
         ind["o4"] = o4(ind["features"], x_closest, R_hat)
@@ -436,11 +451,12 @@ def create_counterfactuals(x_original, x_observational, y_target, model_predict,
     population = generate_population(population_count,feature_ranges,x_original)
     # print(population)
     for i in range(generations):
+        print(f"Generation {i}")
         assign_predictions(population,model_predict)
         compute_objectives(population,x_observational,x_original,y_target,R_hat)
         fronts = nonDominatedSorting(population,x_observational,x_original,model_predict,y_target,R_hat)
         assign_crowding_distance(fronts, y_target,R_hat,model_predict,x_observational,x_original)
-        survived = crowded_tournament_selection(population,population_count/2)
+        survived = crowded_tournament_selection(population,population_count/2,y_target)
         population = generate_offspring(survived,eta_c=20,eta_m=20,lower_bound=mins,upper_bound=maxs,population_size=population_count,feature_ranges=feature_ranges)
         # print(f"generation {i} Created")
     #assign predictions for the final generation
@@ -453,10 +469,12 @@ def create_counterfactuals(x_original, x_observational, y_target, model_predict,
             individual_count +=1
         if individual_count >10:
             break
-    return population
-def plot_features(x_original, hall_of_fame):
-    columns = [
-    "group", "age", "gendera", "BMI", "hypertensive", "atrialfibrillation", 
+    return distilled_population
+def plot_features(x_original, counterfactual,original_prediction ,counterfactual_prediction ):
+    print("counterfactual: ",counterfactual)
+    features = [
+    # "group", 
+    "age", "gendera", "BMI", "hypertensive", "atrialfibrillation", 
     "CHD with no MI", "diabetes", "deficiencyanemias", "depression", "Hyperlipemia", 
     "Renal failure", "COPD", "heart rate", "Systolic blood pressure", 
     "Diastolic blood pressure", "Respiratory rate", "temperature", "SP O2", 
@@ -466,20 +484,34 @@ def plot_features(x_original, hall_of_fame):
     "Blood sodium", "Blood calcium", "Chloride", "Anion gap", "Magnesium ion", "PH", 
     "Bicarbonate", "Lactic acid", "PCO2", "EF"
     ]
+
+    x_original = np.array(x_original)
+    counterfactual_p = np.array(counterfactual)
+    columns = [f"{i+1}. {feature}" for i, feature in enumerate(features)]
+    # Calculate percentage change
+    percent_change = ((counterfactual_p - x_original) / x_original) * 100
+
     df = pd.DataFrame({
     'Feature': columns,
     'Original': x_original,
-    'HallOfFame': hall_of_fame
+    'Counterfactual': counterfactual,
+    'PercentChange': percent_change
     })
     df.set_index('Feature', inplace=True)
-
+    fig, ax = plt.subplots(2, 1, figsize=(14, 10))
     # Plotting the data
-    ax = df.plot(kind='bar', figsize=(10, 5))
-    plt.title('Comparison of Original Individual and Hall of Fame Individual')
-    plt.ylabel('Value')
-    plt.xlabel('Feature')
-    plt.xticks(rotation=45)  # Rotate feature names for better visibility
-    plt.grid(True, linestyle='--', linewidth=0.5)
-    plt.legend(loc='upper right')
+    df[['Original', 'Counterfactual']].plot(kind='bar', ax=ax[0])
+    ax[0].set_title(f'Comparison of Original Individual(predicted={original_prediction}) and the Counterfactual(predicted={counterfactual_prediction})')
+    ax[0].set_ylabel('Value')
+    ax[0].set_xlabel('Feature')
+    ax[0].tick_params(axis='x', rotation=75) # Rotate feature names for better visibility
+    ax[0].grid(True, linestyle='--', linewidth=0.5)
+    ax[0].legend(loc='upper right')
+    df['PercentChange'].plot(kind='bar', ax=ax[1], color='teal')
+    ax[1].set_title('Percentage Change of Features')
+    ax[1].set_ylabel('Percent Change')
+    ax[1].set_xlabel('Feature')
+    ax[1].tick_params(axis='x', rotation=75)
+    ax[1].grid(True, linestyle='--', linewidth=0.5)
     plt.tight_layout()
     plt.show()
