@@ -240,7 +240,7 @@ def sbx_crossover(p1, p2, eta_c=30,feature_ranges=None):
     # print(f"p1={p1}")
     # Perform crossover for each element
     for i in range(len(p1)):
-        if (mutable1[i] or mutable2[i]) and random.random()>0.8:
+        if (mutable1[i] or mutable2[i]) and random.random()>0.9:
             offspring1["mutable_features"][i] = offspring2["mutable_features"][i] = True
             if feature_ranges[i] == (0, 1):
                 # Binary feature, pick randomly from parents
@@ -362,7 +362,7 @@ def generate_random_individual(feature_ranges):
 
 def generate_seeded_individual(feature_ranges, actual_data_point):
     # print("Acutal datapoint: ",actual_data_point)
-    num_features_to_change = random.randint(4, 8)  # Randomly determine number of features to change
+    num_features_to_change = random.randint(2, 4)  # Randomly determine number of features to change
     individual = {
                     'features': np.zeros(len(feature_ranges)),
                     'mutable_features': [False] * len(feature_ranges)
@@ -445,6 +445,28 @@ def compute_objectives(population, x_observational, x_original, y_prime, R_hat):
         ind["o3"] = o3(x_original, ind["features"])
         ind["o4"] = o4(ind["features"], x_closest, R_hat)
 
+def calculate_percentage_change(original, counterfactual):
+    percent_changes = np.zeros_like(original, dtype=float)
+    
+    for i, (orig, cf) in enumerate(zip(original, counterfactual)):
+        if orig == 0 and cf != 0:
+            percent_changes[i] = 100  # From 0 to non-zero
+        elif orig != 0 and cf == 0:
+            percent_changes[i] = 100  # From non-zero to 0
+        elif orig == 0 and cf == 0:
+            percent_changes[i] = 0   # Both are zero, no change
+        else:
+            percent_changes[i] = ((cf - orig) / orig) * 100  # Normal percentage change calculation
+        
+    return percent_changes
+def filter_individuals_by_feature_change(population, original_individual):
+    filtered_population = []
+    for individual in population:
+        percent_changes = calculate_percentage_change(np.array(original_individual), np.array(individual['features']))
+        # Apply any additional filtering criteria based on percent_changes
+        if np.all((-100 <= percent_changes) & (percent_changes <= 100)):
+            filtered_population.append(individual)
+    return filtered_population
 def create_counterfactuals(x_original, x_observational, y_target, model_predict,generations=50, population_count=100):
     feature_ranges, mins, maxs = get_feature_range(x_observational)
     R_hat = calculate_R_hat(x_observational)
@@ -461,14 +483,18 @@ def create_counterfactuals(x_original, x_observational, y_target, model_predict,
         # print(f"generation {i} Created")
     #assign predictions for the final generation
     assign_predictions(population,model_predict)
+    compute_objectives(population,x_observational,x_original,y_target,R_hat)
+    population_sorted = sorted(population, key=lambda x: x['o2'])
+    population_sorted = filter_individuals_by_feature_change(population_sorted,x_original)
     distilled_population = []
     individual_count = 0
-    for i, individual in enumerate(population):
+    for i, individual in enumerate(population_sorted):
         if(individual['prediction'] == y_target):
             distilled_population.append(individual)
             individual_count +=1
         if individual_count >10:
             break
+    print("Not enough individuals are present. Please increase the generation")
     return distilled_population
 def plot_features(x_original, counterfactual,original_prediction ,counterfactual_prediction ):
     print("counterfactual: ",counterfactual)
@@ -489,26 +515,29 @@ def plot_features(x_original, counterfactual,original_prediction ,counterfactual
     counterfactual_p = np.array(counterfactual)
     columns = [f"{i+1}. {feature}" for i, feature in enumerate(features)]
     # Calculate percentage change
-    percent_change = ((counterfactual_p - x_original) / x_original) * 100
-
+    epsilon = 0.1
+    percent_change = calculate_percentage_change(x_original,counterfactual)
     df = pd.DataFrame({
     'Feature': columns,
     'Original': x_original,
     'Counterfactual': counterfactual,
-    'PercentChange': percent_change
+    'PercentChange': percent_change,
     })
     df.set_index('Feature', inplace=True)
+
+    significant_changes = df[np.abs(df['PercentChange']) > 1]  # Change the threshold as needed
     fig, ax = plt.subplots(2, 1, figsize=(14, 10))
     # Plotting the data
     df[['Original', 'Counterfactual']].plot(kind='bar', ax=ax[0])
     ax[0].set_title(f'Comparison of Original Individual(predicted={original_prediction}) and the Counterfactual(predicted={counterfactual_prediction})')
-    ax[0].set_ylabel('Value')
+    ax[0].set_yscale('log')
+    ax[0].set_ylabel('Log-Scaled Value')
     ax[0].set_xlabel('Feature')
     ax[0].tick_params(axis='x', rotation=75) # Rotate feature names for better visibility
     ax[0].grid(True, linestyle='--', linewidth=0.5)
     ax[0].legend(loc='upper right')
-    df['PercentChange'].plot(kind='bar', ax=ax[1], color='teal')
-    ax[1].set_title('Percentage Change of Features')
+    significant_changes['PercentChange'].plot(kind='bar', ax=ax[1], color='teal')
+    ax[1].set_title('Significant Percentage Change of Features')
     ax[1].set_ylabel('Percent Change')
     ax[1].set_xlabel('Feature')
     ax[1].tick_params(axis='x', rotation=75)

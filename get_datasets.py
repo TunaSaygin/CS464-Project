@@ -43,6 +43,7 @@ def get_datasets(data_path):
     X_resampled = X_resampled.drop('ID', axis=1)
     X_test = X_test.drop('group', axis=1)
     X_test = X_test.drop('ID', axis=1)
+    # X_test = X_test.drop("")
     X_val = X_val.drop('group', axis=1)
     X_val = X_val.drop('ID', axis=1)
     print(f"Length of X_train_resampled: {len(X_resampled)}")
