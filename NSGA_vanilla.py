@@ -471,7 +471,7 @@ def create_counterfactuals(x_original, x_observational, y_target, model_predict,
     feature_ranges, mins, maxs = get_feature_range(x_observational)
     R_hat = calculate_R_hat(x_observational)
     population = generate_population(population_count,feature_ranges,x_original)
-    # print(population)
+    # print(x_original)
     for i in range(generations):
         print(f"Generation {i}")
         assign_predictions(population,model_predict)
@@ -488,13 +488,29 @@ def create_counterfactuals(x_original, x_observational, y_target, model_predict,
     population_sorted = filter_individuals_by_feature_change(population_sorted,x_original)
     distilled_population = []
     individual_count = 0
-    for i, individual in enumerate(population_sorted):
+    for j, individual in enumerate(population_sorted):
         if(individual['prediction'] == y_target):
             distilled_population.append(individual)
             individual_count +=1
         if individual_count >10:
             break
     print("Not enough individuals are present. Please increase the generation")
+    while(len(distilled_population) == 0):
+        print(f"Additional Generation {i}")
+        i+=1
+        fronts = nonDominatedSorting(population,x_observational,x_original,model_predict,y_target,R_hat)
+        assign_crowding_distance(fronts, y_target,R_hat,model_predict,x_observational,x_original)
+        survived = crowded_tournament_selection(population,population_count/2,y_target)
+        population = generate_offspring(survived,eta_c=20,eta_m=20,lower_bound=mins,upper_bound=maxs,population_size=population_count,feature_ranges=feature_ranges)
+        assign_predictions(population,model_predict)
+        compute_objectives(population,x_observational,x_original,y_target,R_hat)
+        population_sorted = sorted(population, key=lambda x: x['o2'])
+        for j, individual in enumerate(population_sorted):
+            if(individual['prediction'] == y_target):
+                distilled_population.append(individual)
+                individual_count +=1
+            if individual_count >10:
+                break
     return distilled_population
 def plot_features(x_original, counterfactual,original_prediction ,counterfactual_prediction ):
     print("counterfactual: ",counterfactual)
@@ -515,8 +531,8 @@ def plot_features(x_original, counterfactual,original_prediction ,counterfactual
     counterfactual_p = np.array(counterfactual)
     columns = [f"{i+1}. {feature}" for i, feature in enumerate(features)]
     # Calculate percentage change
-    epsilon = 0.1
     percent_change = calculate_percentage_change(x_original,counterfactual)
+    print(percent_change)
     df = pd.DataFrame({
     'Feature': columns,
     'Original': x_original,
@@ -525,7 +541,7 @@ def plot_features(x_original, counterfactual,original_prediction ,counterfactual
     })
     df.set_index('Feature', inplace=True)
 
-    significant_changes = df[np.abs(df['PercentChange']) > 1]  # Change the threshold as needed
+    significant_changes = df[np.abs(df['PercentChange']) > 0]  # Change the threshold as needed
     fig, ax = plt.subplots(2, 1, figsize=(14, 10))
     # Plotting the data
     df[['Original', 'Counterfactual']].plot(kind='bar', ax=ax[0])

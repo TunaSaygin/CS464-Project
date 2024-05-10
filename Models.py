@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.model_selection import train_test_split
 from sklearn.impute import SimpleImputer
@@ -117,6 +118,11 @@ X_test_filtered_array = X_test_filtered.to_numpy()
 y_test_filtered_array = y_test_filtered.to_numpy()
 print(y_test_filtered_array)
 print(X_test_filtered_array[0])
+# print(predicted_logistic_model)
+# X_test_filtered_array = X_test_one.to_numpy()
+# y_test_filtered_array = y_test_one.to_numpy()
+print(y_test_filtered)
+print(X_test_filtered)
 # print(y_test)
 # prediction = logistic_model.predict(arguement)
 # print(prediction)
@@ -150,16 +156,17 @@ print("Generating counterfactuals for linear SVM...")
 # cf_linear.visualize_as_dataframe(show_only_changes=True)
 
 lr_final_population = nsga.create_counterfactuals(X_test_filtered_array[0],X_test_filtered_array,0,logistic_model.predict,400,100)
+print(scaler.inverse_transform([X_test_filtered_array[0]]))
 # After running the algorithm
 print(f"Final Population's Fitness:{lr_final_population[0]}")
 print(f"Final Population's first value{logistic_model.predict(lr_final_population[0]['features'].reshape(1,-1))}")
 print("lr_final population[0] = ",lr_final_population[0])
-nsga.plot_features(X_test_filtered_array[0],lr_final_population[0]["features"],y_test_filtered_array[0],lr_final_population[0]["prediction"])
+nsga.plot_features(scaler.inverse_transform([X_test_filtered_array[0]])[0],scaler.inverse_transform([lr_final_population[0]["features"]])[0],y_test_filtered_array[0],lr_final_population[0]["prediction"])
 
 
 svm_final_population = nsga.create_counterfactuals(X_test_filtered_array[0],X_test_filtered_array,0,svm_model.predict,250,100)
 print("SVM_final population[0] = ",svm_final_population[0])
-nsga.plot_features(X_test_filtered_array[0],svm_final_population[0]["features"],y_test_filtered_array[0],svm_final_population[0]["prediction"])
+nsga.plot_features(scaler.inverse_transform([X_test_filtered_array[0]])[0],scaler.inverse_transform([svm_final_population[0]["features"]])[0],y_test_filtered_array[0],svm_final_population[0]["prediction"])
 print("Hall of Fame Individuals:")
 
 # confusion matrix for svm linear
