@@ -88,19 +88,40 @@ print(f"Logistic Regression Accuracy: {accuracy}")
 
 #Support Vector Machine
 print("\n\nSupport Vector Machines\n")
-svm_model = SVC(kernel='linear', random_state=42)
+best_accur_svm_l = 0.0
+best_c_svm_l = 0
+for i in [0.1, 1, 10, 100]:
+    svm_model = SVC(kernel='linear', random_state=42, C=i)
+    svm_model.fit(X_train_scaled, y_train)
+    y_pred_svm = svm_model.predict(X_val_scaled)
+    svm_accuracy_linear = accuracy_score(y_val, y_pred_svm)
+    print(f"SVM (linear kernel, C={i}) Accuracy: {svm_accuracy_linear}")
+    if(svm_accuracy_linear > best_accur_svm_l):
+        best_accur_svm_l = svm_accuracy_linear
+        best_c_svm_l = i
+
+svm_model = SVC(kernel='linear', random_state=42, C=best_c_svm_l)
 svm_model.fit(X_train_scaled, y_train)
 y_pred_svm_linear = svm_model.predict(X_test_scaled)
+print(f"SVM test (linear kernel, C={best_c_svm_l}) Accuracy: {svm_accuracy_linear}")
 
-svm_accuracy_linear = accuracy_score(y_test, y_pred_svm_linear)
-print("SVM (linear kernel) Accuracy:", svm_accuracy_linear)
-
-svm_model = SVC(kernel='poly', random_state=42)
+best_accur_svm_p = 0.0
+best_c_svm_p = 0
+for i in [0.1, 1, 10, 100100]:
+    svm_model = SVC(kernel='poly', random_state=42, C=i)
+    svm_model.fit(X_train_scaled, y_train)
+    y_pred_svm = svm_model.predict(X_val_scaled)
+    svm_accuracy_poly = accuracy_score(y_val, y_pred_svm)
+    print(f"SVM (polynomial kernel, C={i}) Accuracy: {svm_accuracy_poly}")
+    if(svm_accuracy_poly > best_accur_svm_p):
+        best_accur_svm_p = svm_accuracy_poly
+        best_c_svm_p = i
+svm_model = SVC(kernel='poly', random_state=42, C=best_c_svm_p)
 svm_model.fit(X_train_scaled, y_train)
 y_pred_svm_poly = svm_model.predict(X_test_scaled)
 
 svm_accuracy_poly = accuracy_score(y_test, y_pred_svm_poly)
-print("SVM (polinomial kernel) Accuracy:", svm_accuracy_poly)
+print(f"SVM test (linear kernel, C={best_c_svm_p}) Accuracy: {svm_accuracy_poly}")
 
 
 # for i in range(1000):
@@ -162,7 +183,6 @@ print(f"Final Population's Fitness:{lr_final_population[0]}")
 print(f"Final Population's first value{logistic_model.predict(lr_final_population[0]['features'].reshape(1,-1))}")
 print("lr_final population[0] = ",lr_final_population[0])
 nsga.plot_features(scaler.inverse_transform([X_test_filtered_array[0]])[0],scaler.inverse_transform([lr_final_population[0]["features"]])[0],y_test_filtered_array[0],lr_final_population[0]["prediction"])
-
 
 svm_final_population = nsga.create_counterfactuals(X_test_filtered_array[0],X_test_filtered_array,0,svm_model.predict,250,100)
 print("SVM_final population[0] = ",svm_final_population[0])
