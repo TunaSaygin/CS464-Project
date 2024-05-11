@@ -7,9 +7,9 @@ def get_datasets(data_path):
     data = pd.read_csv(data_path)
 
     # Separate features and target variable
-    X = data.drop('group', axis=1)
-    X = data.drop('ID', axis=1)
-    X = data.drop('outcome', axis=1)  # Assuming 'outcome' is your target variable
+    X = data.drop(['group'], axis=1)
+    X = X.drop(['ID'], axis=1)
+    X = X.drop(['outcome'], axis=1)  # Assuming 'outcome' is your target variable
     y = data['outcome']
 
     # First, split the data into training and temporary dataset (70% training, 30% temporary)
@@ -38,14 +38,20 @@ def get_datasets(data_path):
     resampled_data['outcome'] = y_resampled
     print("Resampled Training set:")
     print(y_resampled.value_counts(normalize=True))
-    # X_resampled = X_resampled.drop('outcome', axis=1)
-    # X_resampled = X_resampled.drop('group', axis=1)
-    # X_resampled = X_resampled.drop('ID', axis=1)
-    # X_test = X_test.drop('group', axis=1)
-    # X_test = X_test.drop('ID', axis=1)
-    # X_test = X_test.drop("")
-    # X_val = X_val.drop('group', axis=1)
-    # X_val = X_val.drop('ID', axis=1)
+    if 'outcome' in X_resampled.columns:
+        X_resampled = X_resampled.drop('outcome', axis=1)
+    if 'group' in X_resampled.columns:
+        X_resampled = X_resampled.drop('group', axis=1)
+    if 'ID' in X_resampled.columns:
+        X_resampled = X_resampled.drop('ID', axis=1)
+    if 'group' in X_test.columns:
+        X_test = X_test.drop('group', axis=1)
+    if 'ID' in X_test.columns:
+        X_test = X_test.drop('ID', axis=1)
+    if 'group' in X_val.columns:
+        X_val = X_val.drop('group', axis=1)
+    if 'ID' in X_test.columns:
+        X_val = X_val.drop('ID', axis=1)
     print(f"Length of X_train_resampled: {len(X_resampled)}")
     print(f"Length of y_train_resampled: {len(y_resampled)}")
     return X_resampled, y_resampled, X_val, y_val, X_test, y_test
