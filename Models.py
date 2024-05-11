@@ -182,11 +182,13 @@ print(scaler.inverse_transform([X_test_filtered_array[0]]))
 print(f"Final Population's Fitness:{lr_final_population[0]}")
 print(f"Final Population's first value{logistic_model.predict(lr_final_population[0]['features'].reshape(1,-1))}")
 print("lr_final population[0] = ",lr_final_population[0])
-nsga.plot_features(scaler.inverse_transform([X_test_filtered_array[0]])[0],scaler.inverse_transform([lr_final_population[0]["features"]])[0],y_test_filtered_array[0],lr_final_population[0]["prediction"])
+nsga.plot_features(X_test_filtered_array[0],lr_final_population[0]["features"],y_test_filtered_array[0],lr_final_population[0]["prediction"])
+
+#nsga.save_counterfactual_results(X_test_filtered_array,logistic_model.predict,"../lr_counterfactual.csv")
 
 svm_final_population = nsga.create_counterfactuals(X_test_filtered_array[0],X_test_filtered_array,0,svm_model.predict,250,100)
 print("SVM_final population[0] = ",svm_final_population[0])
-nsga.plot_features(scaler.inverse_transform([X_test_filtered_array[0]])[0],scaler.inverse_transform([svm_final_population[0]["features"]])[0],y_test_filtered_array[0],svm_final_population[0]["prediction"])
+nsga.plot_features(X_test_filtered_array[0],svm_final_population[0]["features"],y_test_filtered_array[0],svm_final_population[0]["prediction"])
 print("Hall of Fame Individuals:")
 
 # confusion matrix for svm linear

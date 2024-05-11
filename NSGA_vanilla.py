@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial.distance import cdist
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 def o1(x_prime, y_prime)->float:
     """
     Objective to minimize the distance between the prediction of x_prime and the desired prediction y_prime.
@@ -512,6 +513,53 @@ def create_counterfactuals(x_original, x_observational, y_target, model_predict,
             if individual_count >10:
                 break
     return distilled_population
+
+def plot_feature_changes(df):
+    fig = go.Figure()
+    # Iterate only over rows where there's a significant change
+    for index, row in df.iterrows():
+        if abs(row['PercentChange']) > 0:  # Adjust this threshold if needed
+            fig.add_trace(go.Bar(
+                x=[f"{index} Original", f"{index} Counterfactual"],
+                y=[row['Original'], row['Counterfactual']],
+                name=index
+            ))
+
+    fig.update_layout(
+        title="Comparison of Original and Counterfactual Values for Significant Changes",
+        xaxis_title="Features",
+        yaxis_title="Values",
+        barmode='group'
+    )
+    fig.show()
+
+def adjust_counterfactuals(x_original, counterfactual, features, normal_ranges):
+    x_original = np.array(x_original)
+    counterfactual_p = np.array(counterfactual)
+    percent_change = calculate_percentage_change(x_original, counterfactual_p)
+    changes_to_normal = []
+
+    for idx, feature in enumerate(features):
+        value = x_original[idx]
+        range_type = normal_ranges[feature]
+        if range_type == -1:  # No valid calculation required
+            change_to_normal = 0
+        elif range_type == 0:  # Binary feature
+            if x_original[idx] == 1:
+                change_to_normal = -90  # Need a 90% reduction to reach 0
+            else:
+                change_to_normal = 0  # No change needed, it's already 0
+        else:  # Numerical range
+            normal_min, normal_max = range_type
+            if value < normal_min:
+                change_to_normal = (normal_min - value) / abs(value) * 100 if value != 0 else float('inf')
+            elif value > normal_max:
+                change_to_normal = (normal_max - value) / abs(value) * 100 if value != 0 else float('inf')
+            else:
+                change_to_normal = 0  # Already within the normal range
+        changes_to_normal.append(change_to_normal)
+    
+    return percent_change, changes_to_normal
 def plot_features(x_original, counterfactual,original_prediction ,counterfactual_prediction ):
     print("counterfactual: ",counterfactual)
     features = [
@@ -526,21 +574,72 @@ def plot_features(x_original, counterfactual,original_prediction ,counterfactual
     "Blood sodium", "Blood calcium", "Chloride", "Anion gap", "Magnesium ion", "PH", 
     "Bicarbonate", "Lactic acid", "PCO2", "EF"
     ]
-
+    normal_ranges = {
+    "age": -1,  # Age doesn't have a normal range as it varies widely by context
+    "gendera": -1,  # Gender is categorical
+    "BMI": (18.5, 24.9),
+    "hypertensive": 0,  # Typically binary (yes/no)
+    "atrialfibrillation": 0,  # Typically binary (yes/no)
+    "CHD with no MI": 0,  # Typically binary (yes/no)
+    "diabetes": 0,  # Typically binary (yes/no)
+    "deficiencyanemias": 0,  # Binary or specific medical test ranges
+    "depression": 0,  # Typically binary (yes/no) or specific scale values
+    "Hyperlipemia": 0,  # Typically binary (yes/no); lipid profiles have specific ranges
+    "Renal failure": 0,  # Binary or specific medical test values
+    "COPD": 0,  # Binary (yes/no)
+    "heart rate": (60, 100),
+    "Systolic blood pressure": (90, 120),
+    "Diastolic blood pressure": (60, 80),
+    "Respiratory rate": (12, 20),
+    "temperature": (36.1, 37.2),
+    "SP O2": (95, 100),
+    "Urine output": (800, 2000),
+    "hematocrit": (40, 52),  # Typical range for men, adjust if needed for women or others
+    "RBC": (4.7, 6.1),  # Typical range for men
+    "MCH": (27.5, 33.2),
+    "MCHC": (33.4, 35.5),
+    "MCV": (80, 96),
+    "RDW": (11.6, 14.6),
+    "Leucocyte": (3.5, 10.5),
+    "Platelets": (150, 450),
+    "Neutrophils": (1.8, 7.7),
+    "Basophils": (0, 0.3),
+    "Lymphocyte": (1.2, 3.5),
+    "PT": (9.4, 12.5),
+    "INR": (0.8, 1.2),
+    "NT-proBNP": -1,  # Complex range, often varies significantly especially in heart failure
+    "Creatine kinase": (52, 336),  # Assuming range for men
+    "Creatinine": (0.74, 1.35),  # Assuming range for men
+    "Urea nitrogen": (7, 20),
+    "glucose": (70, 100),
+    "Blood potassium": (3.5, 5.0),
+    "Blood sodium": (135, 145),
+    "Blood calcium": (8.5, 10.2),
+    "Chloride": (98, 106),
+    "Anion gap": (3, 11),
+    "Magnesium ion": (1.7, 2.2),
+    "PH": (7.35, 7.45),
+    "Bicarbonate": (22, 29),
+    "Lactic acid": (0.5, 2.2),
+    "PCO2": (35, 45),
+    "EF": (55, 70)  # Ejection Fraction
+    }
     x_original = np.array(x_original)
     counterfactual_p = np.array(counterfactual)
     columns = [f"{i+1}. {feature}" for i, feature in enumerate(features)]
     # Calculate percentage change
     percent_change = calculate_percentage_change(x_original,counterfactual)
-    print(percent_change)
+    # _,changes_to_normal = adjust_counterfactuals(x_original,counterfactual,features,normal_ranges)
+    # Calculate changes needed to reach the normal range
     df = pd.DataFrame({
     'Feature': columns,
     'Original': x_original,
     'Counterfactual': counterfactual,
     'PercentChange': percent_change,
+    # 'PercentNormalChange':changes_to_normal
     })
     df.set_index('Feature', inplace=True)
-
+    # plot_feature_changes(df=df)
     significant_changes = df[np.abs(df['PercentChange']) > 0]  # Change the threshold as needed
     fig, ax = plt.subplots(2, 1, figsize=(14, 10))
     # Plotting the data
@@ -552,11 +651,48 @@ def plot_features(x_original, counterfactual,original_prediction ,counterfactual
     ax[0].tick_params(axis='x', rotation=75) # Rotate feature names for better visibility
     ax[0].grid(True, linestyle='--', linewidth=0.5)
     ax[0].legend(loc='upper right')
+    # significant_changes[['PercentChange','PercentNormalChange']].plot(kind='bar', ax=ax[1])
     significant_changes['PercentChange'].plot(kind='bar', ax=ax[1], color='teal')
     ax[1].set_title('Significant Percentage Change of Features')
     ax[1].set_ylabel('Percent Change')
     ax[1].set_xlabel('Feature')
     ax[1].tick_params(axis='x', rotation=75)
     ax[1].grid(True, linestyle='--', linewidth=0.5)
+    ax[1].legend(loc='upper right')
     plt.tight_layout()
     plt.show()
+
+def generate_all_counterfactuals(X_test, model_predict, generations=250, population_size=100):
+    # Array to store all changes
+    all_changes = []
+
+    # Loop through each test instance
+    for i in range(len(X_test)):
+        # Generate counterfactual
+        final_population = create_counterfactuals(X_test[i], X_test, 0, model_predict, generations, population_size)
+        
+        # Assuming the best counterfactual is the first in the final_population
+        best_cf = final_population[0]["features"]
+        original = X_test[i]
+        
+        # Calculate changes
+        changes = np.abs(best_cf - original) / (np.abs(original) + 1e-6) * 100  # Avoid division by zero
+        all_changes.append(changes)
+
+    return np.array(all_changes)    
+
+def save_counterfactual_results(X_test, model_predict, filename):
+    all_changes = generate_all_counterfactuals(X_test, model_predict)
+    average_changes = np.mean(all_changes, axis=0)
+    frequency_of_changes = np.sum(all_changes != 0, axis=0) / len(X_test) * 100
+
+    # Creating DataFrame for better visualization
+    features = ["Feature {}".format(i+1) for i in range(all_changes.shape[1])]
+    change_df = pd.DataFrame({
+        'Feature': features,
+        'Average Change (%)': average_changes,
+        'Change Frequency (%)': frequency_of_changes
+    })
+    change_df.to_csv(filename, index=False)
+
+    print(f"Results saved to {filename}")
