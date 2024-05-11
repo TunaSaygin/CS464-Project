@@ -184,12 +184,12 @@ print(f"Final Population's first value{logistic_model.predict(lr_final_populatio
 print("lr_final population[0] = ",lr_final_population[0])
 nsga.plot_features(X_test_filtered_array[0],lr_final_population[0]["features"],y_test_filtered_array[0],lr_final_population[0]["prediction"])
 
-#nsga.save_counterfactual_results(X_test_filtered_array,logistic_model.predict,"../lr_counterfactual.csv")
+nsga.save_counterfactual_results(X_test_filtered_array,logistic_model.predict,"../lr_counterfactual.csv")
 
 svm_final_population = nsga.create_counterfactuals(X_test_filtered_array[0],X_test_filtered_array,0,svm_model.predict,250,100)
 print("SVM_final population[0] = ",svm_final_population[0])
 nsga.plot_features(X_test_filtered_array[0],svm_final_population[0]["features"],y_test_filtered_array[0],svm_final_population[0]["prediction"])
-print("Hall of Fame Individuals:")
+nsga.save_counterfactual_results(X_test_filtered_array,svm_model.predict,"../svm_counterfactual.csv")
 
 # confusion matrix for svm linear
 conf_matrix = confusion_matrix(y_test, y_pred_svm_linear)

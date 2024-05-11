@@ -350,7 +350,11 @@ def calculate_R_hat(x_observational):
     return R_hat
 
 def generate_random_individual(feature_ranges):
-    individual = {'features': np.zeros(len(feature_ranges))}
+    individual = {
+        'features': np.zeros(len(feature_ranges)),
+        'mutable_features': [False] * len(feature_ranges)
+        }
+    
     for i, ((low, high)) in enumerate(feature_ranges.values()):
         if low == 0 and high == 1:
             # If the range is 0 to 1, assign randomly either 0 or 1
@@ -383,10 +387,10 @@ def generate_seeded_individual(feature_ranges, actual_data_point):
     individual.update({'np': 0, 'Sp': [], 'crowding_distance': 0})
     return individual
 
-def generate_population(population_size, feature_ranges, actual_dataset):
+def generate_population(population_size, feature_ranges, actual_dataset, seed_ratio = 1):
     population = []
     # Seed with actual data points
-    num_seeds = int(population_size * 1)  # Adjust the proportion as needed
+    num_seeds = int(population_size * seed_ratio)  # Adjust the proportion as needed
     for _ in range(num_seeds):
         population.append(generate_seeded_individual(feature_ranges, actual_dataset))
     # Generate the rest as random
@@ -497,12 +501,17 @@ def create_counterfactuals(x_original, x_observational, y_target, model_predict,
             break
     print("Not enough individuals are present. Please increase the generation")
     while(len(distilled_population) == 0):
+        population = generate_population(population_count,feature_ranges,x_original,seed_ratio=0.2)
         print(f"Additional Generation {i}")
         i+=1
-        fronts = nonDominatedSorting(population,x_observational,x_original,model_predict,y_target,R_hat)
-        assign_crowding_distance(fronts, y_target,R_hat,model_predict,x_observational,x_original)
-        survived = crowded_tournament_selection(population,population_count/2,y_target)
-        population = generate_offspring(survived,eta_c=20,eta_m=20,lower_bound=mins,upper_bound=maxs,population_size=population_count,feature_ranges=feature_ranges)
+        for j in range(50):
+            assign_predictions(population,model_predict)
+            compute_objectives(population,x_observational,x_original,y_target,R_hat)
+            # print(population)
+            fronts = nonDominatedSorting(population,x_observational,x_original,model_predict,y_target,R_hat)
+            assign_crowding_distance(fronts, y_target,R_hat,model_predict,x_observational,x_original)
+            survived = crowded_tournament_selection(population,population_count/2,y_target)
+            population = generate_offspring(survived,eta_c=20,eta_m=20,lower_bound=mins,upper_bound=maxs,population_size=population_count,feature_ranges=feature_ranges)
         assign_predictions(population,model_predict)
         compute_objectives(population,x_observational,x_original,y_target,R_hat)
         population_sorted = sorted(population, key=lambda x: x['o2'])
@@ -662,7 +671,7 @@ def plot_features(x_original, counterfactual,original_prediction ,counterfactual
     plt.tight_layout()
     plt.show()
 
-def generate_all_counterfactuals(X_test, model_predict, generations=250, population_size=100):
+def generate_all_counterfactuals(X_test, model_predict, generations=100, population_size=200):
     # Array to store all changes
     all_changes = []
 
