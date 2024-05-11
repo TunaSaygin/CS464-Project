@@ -4,6 +4,7 @@ import pandas as pd
 from scipy.spatial.distance import cdist
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
+import torch
 def o1(x_prime, y_prime)->float:
     """
     Objective to minimize the distance between the prediction of x_prime and the desired prediction y_prime.
@@ -230,7 +231,7 @@ def crowded_tournament_selection(population, k, target_outcome):
         selected.append(winner)
 
     return selected
-def sbx_crossover(p1, p2, eta_c=30,feature_ranges=None):
+def sbx_crossover(p1, p2, eta_c=30,feature_ranges=None, crossover_probability=0.1):
     p1, mutable1 = np.array(p1["features"]), p1["mutable_features"]
     p2, mutable2 = np.array(p2["features"]), p2["mutable_features"]
     p1 = np.array(p1)
@@ -241,7 +242,7 @@ def sbx_crossover(p1, p2, eta_c=30,feature_ranges=None):
     # print(f"p1={p1}")
     # Perform crossover for each element
     for i in range(len(p1)):
-        if (mutable1[i] or mutable2[i]) and random.random()>0.9:
+        if (mutable1[i] or mutable2[i]) and random.random()>(1-crossover_probability):
             offspring1["mutable_features"][i] = offspring2["mutable_features"][i] = True
             if feature_ranges[i] == (0, 1):
                 # Binary feature, pick randomly from parents
@@ -305,7 +306,7 @@ def polynomial_mutation(child, eta_m, lower_bound, upper_bound, feature_ranges):
 
     return child
 
-def generate_offspring(selected_individuals, eta_c, eta_m, lower_bound, upper_bound, population_size,feature_ranges):
+def generate_offspring(selected_individuals, eta_c, eta_m, lower_bound, upper_bound, population_size,feature_ranges, crossover_probability = 0.1):
     new_generation = []
     
     # Ensure we have an even number of individuals for pairing
@@ -319,7 +320,7 @@ def generate_offspring(selected_individuals, eta_c, eta_m, lower_bound, upper_bo
         for i in range(0, len(selected_individuals), 2):
             parent1, parent2 = selected_individuals[i], selected_individuals[i+1]
             # Apply crossover
-            offspring1, offspring2 = sbx_crossover(parent1, parent2, eta_c,feature_ranges)
+            offspring1, offspring2 = sbx_crossover(parent1, parent2, eta_c,feature_ranges,crossover_probability=crossover_probability)
             
             # Apply mutation
             offspring1 = polynomial_mutation(offspring1, eta_m, lower_bound, upper_bound,feature_ranges)
@@ -365,9 +366,13 @@ def generate_random_individual(feature_ranges):
     individual.update({'np': 0, 'Sp': [], 'crowding_distance': 0})
     return individual
 
-def generate_seeded_individual(feature_ranges, actual_data_point):
+def generate_seeded_individual(feature_ranges, actual_data_point, isBroad = False):
     # print("Acutal datapoint: ",actual_data_point)
     num_features_to_change = random.randint(2, 4)  # Randomly determine number of features to change
+    scale = 0.2
+    if isBroad:
+        num_features_to_change = random.randint(9, 15) 
+        scale = 0.5
     individual = {
                     'features': np.zeros(len(feature_ranges)),
                     'mutable_features': [False] * len(feature_ranges)
@@ -379,7 +384,7 @@ def generate_seeded_individual(feature_ranges, actual_data_point):
             if low == 0 and high == 1:
                 individual['features'][i] = actual_data_point[i]
             else:
-                perturbation = (high - low) * 0.2  # Adjust the perturbation scale as needed
+                perturbation = (high - low) * scale  # Adjust the perturbation scale as needed
                 individual['features'][i] = np.clip(actual_data_point[i] + np.random.uniform(-perturbation, perturbation), low, high)
             individual['mutable_features'][i] = True
         else:
@@ -387,31 +392,38 @@ def generate_seeded_individual(feature_ranges, actual_data_point):
     individual.update({'np': 0, 'Sp': [], 'crowding_distance': 0})
     return individual
 
-def generate_population(population_size, feature_ranges, actual_dataset, seed_ratio = 1):
+def generate_population(population_size, feature_ranges, actual_dataset, isBroad = False, fullyRandom=False):
     population = []
     # Seed with actual data points
-    num_seeds = int(population_size * seed_ratio)  # Adjust the proportion as needed
+    num_seeds = int(population_size * 1)  # Adjust the proportion as needed
+    if(fullyRandom):
+        num_seeds = 1
     for _ in range(num_seeds):
-        population.append(generate_seeded_individual(feature_ranges, actual_dataset))
+        population.append(generate_seeded_individual(feature_ranges, actual_dataset, isBroad=isBroad))
     # Generate the rest as random
     for _ in range(population_size - num_seeds):
         population.append(generate_random_individual(feature_ranges))
     return population
-def prepare_batch(population):
+def prepare_batch(population, requiresTensor = False):
     # print("First individual in population:", population[0])
     """Prepare a batch from the population's features for model prediction."""
     # Extract features from each individual and stack them into a single NumPy array
     # features_batch = np.array([ind["features"] for ind in population])
-    features_batch = np.array([ind.get("features", np.array([])) for ind in population])
+    if requiresTensor:
+        features_batch =  torch.tensor(np.array([ind.get("features", np.array([])) for ind in population]), dtype=torch.float32)
+    else:
+        features_batch = np.array([ind.get("features", np.array([])) for ind in population])
     return features_batch
 
-def assign_predictions(population, model_predict):
+def assign_predictions(population, model_predict, requiresTensor = False):
     """Perform batch prediction and assign the predictions to individuals."""
-    features_batch = prepare_batch(population)
+    features_batch = prepare_batch(population,requiresTensor=requiresTensor)
     predictions = model_predict(features_batch)
     
     # Assign predictions back to the individuals
     for ind, prediction in zip(population, predictions):
+        if requiresTensor:
+            ind["prediction"] = prediction[0]
         ind["prediction"] = prediction
 
 def find_closest_observed_vectorized(x_primes, x_obs):
@@ -472,14 +484,14 @@ def filter_individuals_by_feature_change(population, original_individual):
         if np.all((-100 <= percent_changes) & (percent_changes <= 100)):
             filtered_population.append(individual)
     return filtered_population
-def create_counterfactuals(x_original, x_observational, y_target, model_predict,generations=50, population_count=100):
+def create_counterfactuals(x_original, x_observational, y_target, model_predict,generations=50, population_count=100, requiresTensor = False):
     feature_ranges, mins, maxs = get_feature_range(x_observational)
     R_hat = calculate_R_hat(x_observational)
     population = generate_population(population_count,feature_ranges,x_original)
     # print(x_original)
     for i in range(generations):
         print(f"Generation {i}")
-        assign_predictions(population,model_predict)
+        assign_predictions(population,model_predict, requiresTensor=requiresTensor)
         compute_objectives(population,x_observational,x_original,y_target,R_hat)
         fronts = nonDominatedSorting(population,x_observational,x_original,model_predict,y_target,R_hat)
         assign_crowding_distance(fronts, y_target,R_hat,model_predict,x_observational,x_original)
@@ -487,7 +499,7 @@ def create_counterfactuals(x_original, x_observational, y_target, model_predict,
         population = generate_offspring(survived,eta_c=20,eta_m=20,lower_bound=mins,upper_bound=maxs,population_size=population_count,feature_ranges=feature_ranges)
         # print(f"generation {i} Created")
     #assign predictions for the final generation
-    assign_predictions(population,model_predict)
+    assign_predictions(population,model_predict, requiresTensor=requiresTensor)
     compute_objectives(population,x_observational,x_original,y_target,R_hat)
     population_sorted = sorted(population, key=lambda x: x['o2'])
     population_sorted = filter_individuals_by_feature_change(population_sorted,x_original)
@@ -500,19 +512,27 @@ def create_counterfactuals(x_original, x_observational, y_target, model_predict,
         if individual_count >10:
             break
     print("Not enough individuals are present. Please increase the generation")
+    additional_iter = 0
+    crossover_probability = 0.1
     while(len(distilled_population) == 0):
-        population = generate_population(population_count,feature_ranges,x_original,seed_ratio=0.2)
+        fully_random = False
+        crossover_probability +=0.1
+        if additional_iter > 8:
+            fully_random = True
+            crossover_probability = 0.8
+        population = generate_population(population_count,feature_ranges,x_original,isBroad = True, fullyRandom=fully_random)
         print(f"Additional Generation {i}")
         i+=1
+        additional_iter +=1
         for j in range(50):
-            assign_predictions(population,model_predict)
+            assign_predictions(population,model_predict, requiresTensor=requiresTensor)
             compute_objectives(population,x_observational,x_original,y_target,R_hat)
             # print(population)
             fronts = nonDominatedSorting(population,x_observational,x_original,model_predict,y_target,R_hat)
             assign_crowding_distance(fronts, y_target,R_hat,model_predict,x_observational,x_original)
             survived = crowded_tournament_selection(population,population_count/2,y_target)
-            population = generate_offspring(survived,eta_c=20,eta_m=20,lower_bound=mins,upper_bound=maxs,population_size=population_count,feature_ranges=feature_ranges)
-        assign_predictions(population,model_predict)
+            population = generate_offspring(survived,eta_c=20,eta_m=20,lower_bound=mins,upper_bound=maxs,population_size=population_count,feature_ranges=feature_ranges, crossover_probability= crossover_probability)
+        assign_predictions(population,model_predict, requiresTensor= requiresTensor)
         compute_objectives(population,x_observational,x_original,y_target,R_hat)
         population_sorted = sorted(population, key=lambda x: x['o2'])
         for j, individual in enumerate(population_sorted):
@@ -671,14 +691,15 @@ def plot_features(x_original, counterfactual,original_prediction ,counterfactual
     plt.tight_layout()
     plt.show()
 
-def generate_all_counterfactuals(X_test, model_predict, generations=100, population_size=200):
+def generate_all_counterfactuals(X_test, model_predict,generations=90, population_size=290,requiresTensor = False):
     # Array to store all changes
     all_changes = []
 
     # Loop through each test instance
     for i in range(len(X_test)):
         # Generate counterfactual
-        final_population = create_counterfactuals(X_test[i], X_test, 0, model_predict, generations, population_size)
+        print(f"data {i} / {len(X_test)}")
+        final_population = create_counterfactuals(X_test[i], X_test, 0, model_predict, generations, population_size, requiresTensor=requiresTensor)
         
         # Assuming the best counterfactual is the first in the final_population
         best_cf = final_population[0]["features"]
@@ -690,8 +711,8 @@ def generate_all_counterfactuals(X_test, model_predict, generations=100, populat
 
     return np.array(all_changes)    
 
-def save_counterfactual_results(X_test, model_predict, filename):
-    all_changes = generate_all_counterfactuals(X_test, model_predict)
+def save_counterfactual_results(X_test, model_predict, filename, requiresTensor = False):
+    all_changes = generate_all_counterfactuals(X_test, model_predict, requiresTensor=requiresTensor)
     average_changes = np.mean(all_changes, axis=0)
     frequency_of_changes = np.sum(all_changes != 0, axis=0) / len(X_test) * 100
 
