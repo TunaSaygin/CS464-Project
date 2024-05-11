@@ -3,28 +3,7 @@ import torch.nn as nn
 import get_datasets
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.metrics import confusion_matrix, accuracy_score
-
-class BinaryClassifier(nn.Module):
-    def __init__(self):
-        super(BinaryClassifier, self).__init__()
-        self.layer1 = nn.Linear(48, 96)
-        self.layer_norm1 = nn.LayerNorm(96)
-        self.relu = nn.ReLU()
-        self.layer2 = nn.Linear(96, 48)
-        self.layer_norm2 = nn.LayerNorm(48)
-        self.output_layer = nn.Linear(48, 1)
-        self.sigmoid = nn.Sigmoid()
-
-    def forward(self, x):
-        x = self.layer1(x)
-        x = self.layer_norm1(x)
-        x = self.relu(x)
-        x = self.layer2(x)
-        x = self.layer_norm2(x)
-        x = self.relu(x)
-        x = self.output_layer(x)
-        x = self.sigmoid(x)
-        return x
+import binary_classifier_nn
 
 # Model configuration
 num_of_epochs = 100
@@ -49,7 +28,7 @@ val_loader = DataLoader(TensorDataset(X_val, y_val), batch_size=test_batch, shuf
 test_loader = DataLoader(TensorDataset(X_test, y_test), batch_size=test_batch, shuffle=False)
 
 # Model, optimizer and loss function
-model = BinaryClassifier()
+model = binary_classifier_nn.BinaryClassifier()
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 #optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, weight_decay=5e-04)
 criterion = nn.BCELoss()
