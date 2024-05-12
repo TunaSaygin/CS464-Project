@@ -74,15 +74,25 @@ print(f"Length of X_train_scaled: {len(X_train_scaled)}")
 # Initialize and train the logistic regression model
 logistic_model = LogisticRegression(max_iter=1500)
 logistic_model.fit(X_train_scaled, y_train)
-y_pred = logistic_model.predict(X_test_scaled)
+y_pred_val = logistic_model.predict(X_val_scaled)
+y_pred_test = logistic_model.predict(X_test_scaled)
 explainer = shap.Explainer(logistic_model, X_train)
 shap_values = explainer(X_test_scaled)
 shap.summary_plot(shap_values, X_test_scaled)
 
-
 #performance
-accuracy = accuracy_score(y_test, y_pred)
-print(f"Logistic Regression Accuracy: {accuracy}")
+accuracy = accuracy_score(y_val, y_pred_val)
+print(f"Logistic Regression val Accuracy: {accuracy}")
+accuracy = accuracy_score(y_test, y_pred_test)
+print(f"Logistic Regression test Accuracy: {accuracy}")
+
+# confusion matrix for logistic reg
+conf_matrix = confusion_matrix(y_test, y_pred_test)
+print(conf_matrix)
+disp = ConfusionMatrixDisplay(confusion_matrix=conf_matrix, display_labels= ["Survived", "Died"])
+disp.plot()
+plt.title("Confusion Matrix for Logistic Regression)")
+plt.show()
 
 #Support Vector Machine
 print("\n\nSupport Vector Machines\n")

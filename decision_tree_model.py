@@ -1,8 +1,10 @@
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay
 from sklearn.preprocessing import StandardScaler
 import get_datasets
 import NSGA_vanilla as nsga
+import matplotlib.pyplot as plt
+
 # Get the dataset
 X_train, y_train, X_val, y_val, X_test, y_test = get_datasets.get_datasets("merged_data.csv")
 scaler = StandardScaler()
@@ -32,6 +34,14 @@ clf.fit(X_train_scaled, y_train)
 test_predictions = clf.predict(X_test_scaled)
 test_accuracy = accuracy_score(y_test, test_predictions)
 print(f"Test Accuracy: {test_accuracy}")
+
+# confusion matrix for decision tree
+conf_matrix = confusion_matrix(y_test, test_predictions)
+print(conf_matrix)
+disp = ConfusionMatrixDisplay(confusion_matrix=conf_matrix, display_labels= ["Survived", "Died"])
+disp.plot()
+plt.title("Confusion Matrix for Decision Tree (ccp_alpha=0.035)")
+plt.show()
 
 #counterfactuals
 X_test_filtered = X_test_scaled[y_test == 1]
