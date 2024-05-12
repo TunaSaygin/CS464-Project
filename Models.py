@@ -9,11 +9,9 @@ from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay
 from sklearn.svm import SVC
-import os
 import NSGA_vanilla as nsga
 import matplotlib.pyplot as plt
 import shap
-from imblearn.over_sampling import ADASYN
 import get_datasets as get_ds
 # import dice_ml
 # from dice_ml.utils import helpers  # helper functions
